@@ -196,214 +196,286 @@
         </div>
     </div>
 
-    <script>
-        const SUPABASE_URL = 'https://naburjspbrqnymfcmogv.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hYnVyanNwYnJxbnltZmNtb2d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDY0NDQsImV4cCI6MjA4NjQ4MjQ0NH0.ABGFW9a0Di9jzRgzwrq5kkEPGfy0YNDznnRFW9HSPm70';
-        const TABLES = { USERS: 'users', TOOLS: 'tools', PURCHASES: 'purchases', LIKES: 'likes' };
 
-        const HEADERS = {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-        };
+<script>
+const SUPABASE_URL = 'https://naburjspbrqnymfcmogv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hYnVyanNwYnJxbnltZmNtb2d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDY0NDQsImV4cCI6MjA4NjQ4MjQ0NH0.ABGFW9a0Di9jzRgzwrq5kkEPGfy0YNDznnRFW9HSPm70';
+const TABLES = { USERS: 'users', TOOLS: 'tools', PURCHASES: 'purchases', LIKES: 'likes' };
 
-        // Show section
-        function showSection(sectionId) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.getElementById(sectionId + 'Section').classList.add('active');
-            
-            if (sectionId === 'stats') loadStats();
-            if (sectionId === 'tools') loadTools();
-            if (sectionId === 'users') loadUsers();
-            if (sectionId === 'purchases') loadPurchases();
-        }
+const HEADERS = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json'
+};
 
-        // API Helper (exact web app queries)
-        async function apiRequest(path, options = {}) {
-            try {
-                const url = new URL(`${SUPABASE_URL}/rest/v1${path}`);
-                const res = await fetch(url, {
-                    method: options.method || 'GET',
-                    headers: { ...HEADERS, ...options.headers },
-                    body: options.body ? JSON.stringify(options.body) : null
-                });
-                return { data: await res.json(), status: res.status };
-            } catch(e) {
-                return { data: [], status: 500, error: e.message };
-            }
-        }
+// Show section
+function showSection(sectionId) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(sectionId + 'Section').classList.add('active');
+    
+    // ✅ RLS-SAFE CALLS ONLY
+    if (sectionId === 'stats') loadStatsSafe();
+    if (sectionId === 'tools') loadToolsSafe();
+    if (sectionId === 'users') loadUsersSafe();
+    if (sectionId === 'purchases') loadPurchasesSafe();
+}
 
-        // 🔢 STATS
-        async function loadStats() {
-            const [tools, users, purchases, topTools] = await Promise.all([
-                apiRequest('/tools?select=count'),
-                apiRequest('/users?select=count'),
-                apiRequest('/purchases?select=count'),
-                apiRequest('/tools?order=likes_count.desc&limit=1')
-            ]);
-            
-            document.getElementById('toolsCount').textContent = tools.data[0]?.count || 0;
-            document.getElementById('usersCount').textContent = users.data[0]?.count || 0;
-            document.getElementById('purchasesCount').textContent = purchases.data[0]?.count || 0;
-            document.getElementById('topTools').textContent = topTools.data[0]?.likes_count || 0;
-        }
+// ✅ RLS-SAFE API Helper
+async function apiRequest(path, options = {}) {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+            method: options.method || 'GET',
+            headers: { ...HEADERS, ...options.headers },
+            body: options.body ? JSON.stringify(options.body) : undefined
+        });
+        const data = await res.json();
+        return { data, status: res.status };
+    } catch(e) {
+        return { data: [], status: 500 };
+    }
+}
 
-        // 🛠️ TOOLS (EXACT loadTools())
-        async function loadTools() {
-            document.getElementById('toolsTable').innerHTML = '<div class="loading">Loading tools...</div>';
-            const { data, status } = await apiRequest('/tools?select=*,users(username)&order=created_at.desc');
-            
-            if (status !== 200 || !Array.isArray(data)) {
-                document.getElementById('toolsTable').innerHTML = '<div class="error">❌ RLS blocked or no tools</div>';
-                return;
-            }
-            
-            const allTools = data.map(t => ({ ...t, likes_count: t.likes_count ?? 0 }));
-            let html = `<p>✅ Loaded ${allTools.length} tools</p><table><tr><th>ID</th><th>Name</th><th>Creator</th><th>Price</th><th>Likes</th><th>Free</th></tr>`;
-            allTools.slice(0, 50).forEach(t => {
-                html += `<tr><td>${t.id.slice(-8)}</td><td>${t.name}</td><td>${t.users?.username || 'anon'}</td><td>${t.price || 0}¢</td><td>${t.likes_count}❤️</td><td>${t.is_free ? '✅' : '❌'}</td></tr>`;
-            });
-            html += '</table>';
-            document.getElementById('toolsTable').innerHTML = html;
-        }
+// 🔥 STATS - Always works
+async function loadStatsSafe() {
+    const [tools, users, purchases, topTool] = await Promise.all([
+        apiRequest('/tools?select=count'),
+        apiRequest('/users?select=count'),
+        apiRequest('/purchases?select=count'),
+        apiRequest('/tools?order=likes_count.desc&limit=1')
+    ]);
+    
+    document.getElementById('toolsCount').textContent = tools.data[0]?.count || 0;
+    document.getElementById('usersCount').textContent = users.data[0]?.count || 0;
+    document.getElementById('purchasesCount').textContent = purchases.data[0]?.count || 0;
+    document.getElementById('topTools').textContent = topTool.data[0]?.likes_count || 0;
+}
 
-        // 👥 USERS
-        async function loadUsers() {
-            document.getElementById('usersTable').innerHTML = '<div class="loading">Loading users...</div>';
-            const { data } = await apiRequest('/users?select=*,coins,username&order=coins.desc');
-            
-            let html = `<p>Loaded ${data.length} users</p><table><tr><th>ID</th><th>Username</th><th>Email</th><th>Coins</th><th>Points</th></tr>`;
-            data.slice(0, 50).forEach(u => {
-                html += `<tr><td>${u.id.slice(-8)}</td><td>${u.username}</td><td>${u.email}</td><td><strong>${u.coins || 0}</strong></td><td>${u.points || 0}</td></tr>`;
-            });
-            html += '</table>';
-            document.getElementById('usersTable').innerHTML = html;
-        }
+// 🛠️ TOOLS - Simple fields only (no joins)
+async function loadToolsSafe() {
+    document.getElementById('toolsTable').innerHTML = '<div class="loading">🔄 Loading safe tools...</div>';
+    const { data } = await apiRequest('/tools?order=likes_count.desc&limit=50');
+    
+    if (!data.length) {
+        document.getElementById('toolsTable').innerHTML = '<div class="error">❌ No tools or RLS blocked</div>';
+        return;
+    }
+    
+    let html = `<p>✅ ${data.length} tools loaded</p>
+    <table><tr><th>ID</th><th>Name</th><th>Price</th><th>Likes</th><th>Free?</th></tr>`;
+    data.slice(0, 25).forEach(t => {
+        html += `<tr>
+            <td title="${t.id}">${t.id.slice(-8)}</td>
+            <td>${t.name || 'N/A'}</td>
+            <td>${t.price || 0}¢</td>
+            <td>${t.likes_count || 0}❤️</td>
+            <td>${t.is_free ? '✅ FREE' : '❌'}</td>
+        </tr>`;
+    });
+    html += '</table>';
+    document.getElementById('toolsTable').innerHTML = html;
+}
 
-        // 🛒 PURCHASES
-        async function loadPurchases() {
-            document.getElementById('purchasesTable').innerHTML = '<div class="loading">Loading purchases...</div>';
-            const { data } = await apiRequest('/purchases?select=*,tools(*),users(*)');
-            
-            let html = `<p>Loaded ${data.length} purchases</p><table><tr><th>ID</th><th>User</th><th>Tool</th><th>Price</th><th>Date</th></tr>`;
-            data.slice(0, 50).forEach(p => {
-                html += `<tr><td>${p.id.slice(-12)}...</td><td>${p.users?.username || 'anon'}</td><td>${p.tools?.name || 'N/A'}</td><td>${p.amount_paid || 0}¢</td><td>${p.purchased_at?.slice(0,16)}</td></tr>`;
-            });
-            html += '</table>';
-            document.getElementById('purchasesTable').innerHTML = html;
-        }
+// 👥 USERS - Count + rich users only
+async function loadUsersSafe() {
+    document.getElementById('usersTable').innerHTML = '<div class="loading">🔄 Loading users...</div>';
+    
+    // Total count
+    const countRes = await apiRequest('/users?select=count');
+    const totalUsers = countRes.data[0]?.count || 0;
+    
+    // Top 10 richest (RLS usually allows)
+    const { data: richUsers } = await apiRequest('/users?order=coins.desc&limit=10');
+    
+    let html = `<p>👥 Total: ${totalUsers} users | Showing top ${richUsers.length}</p>
+    <table><tr><th>ID</th><th>Username</th><th>Email</th><th>Coins</th><th>Points</th></tr>`;
+    
+    richUsers.forEach(u => {
+        html += `<tr>
+            <td title="${u.id}">${u.id.slice(-8)}</td>
+            <td>${u.username || 'N/A'}</td>
+            <td>${u.email?.slice(0,20) || 'N/A'}</td>
+            <td><strong>${u.coins || 0}</strong></td>
+            <td>${u.points || 0}</td>
+        </tr>`;
+    });
+    html += '</table>';
+    document.getElementById('usersTable').innerHTML = html;
+}
 
-        // 💰 ADD COINS
-        async function addCoins() {
-            const username = document.getElementById('coinUsername').value;
-            const amount = parseInt(document.getElementById('coinAmount').value) || 0;
-            
-            if (!username) return showResult('coinResult', 'Enter username', 'error');
-            
-            const { data: users } = await apiRequest(`/users?username=eq.${username}&select=coins`);
-            if (!users.length) return showResult('coinResult', 'User not found', 'error');
-            
-            const newCoins = Math.max(0, (users[0].coins || 0) + amount);
-            const { status } = await apiRequest(`/users?username=eq.${username}`, {
-                method: 'PATCH'
-            }, { coins: newCoins });
-            
-            showResult('coinResult', status === 204 ? `✅ ${username}: ${newCoins} coins (+${amount})` : '❌ Failed', status === 204 ? 'success' : 'error');
-        }
+// 🛒 PURCHASES - Count + recent
+async function loadPurchasesSafe() {
+    document.getElementById('purchasesTable').innerHTML = '<div class="loading">🔄 Loading purchases...</div>';
+    
+    const countRes = await apiRequest('/purchases?select=count');
+    const totalPurchases = countRes.data[0]?.count || 0;
+    
+    // Recent purchases (simpler query)
+    const { data: recent } = await apiRequest('/purchases?order=purchased_at.desc&limit=20');
+    
+    let html = `<p>🛒 Total: ${totalPurchases} | Recent ${recent.length}</p>
+    <table><tr><th>ID</th><th>User ID</th><th>Tool ID</th><th>Price</th><th>Date</th></tr>`;
+    
+    recent.forEach(p => {
+        html += `<tr>
+            <td>${p.id.slice(-12)}...</td>
+            <td>${p.user_id?.slice(-8)}</td>
+            <td>${p.tool_id?.slice(-8)}</td>
+            <td>${p.amount_paid || 0}¢</td>
+            <td>${p.purchased_at?.slice(0,16)}</td>
+        </tr>`;
+    });
+    html += '</table>';
+    document.getElementById('purchasesTable').innerHTML = html;
+}
 
-        // 🆕 CREATE USER
-        async function createUser() {
-            const email = document.getElementById('newUserEmail').value;
-            const username = document.getElementById('newUserName').value;
-            const password = document.getElementById('newUserPass').value;
-            
-            if (!email || !username || !password) return showResult('userResult', 'Fill all fields', 'error');
-            
-            const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
-            const hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2,'0')).join('');
-            
-            const { status } = await apiRequest('/users', { 
-                method: 'POST',
-                headers: { 'Prefer': 'return=representation' }
-            }, { email, username, password_hash: hash, coins: 100, points: 0 });
-            
-            showResult('userResult', status === 201 ? `✅ ${username} created!` : '❌ Failed', status === 201 ? 'success' : 'error');
-            document.getElementById('createUserSection').querySelectorAll('input').forEach(i => i.value = '');
-        }
+// 💰 ADD COINS (exact web app logic)
+async function addCoins() {
+    const username = document.getElementById('coinUsername').value.trim();
+    const amount = parseInt(document.getElementById('coinAmount').value) || 0;
+    
+    if (!username) return showResult('coinResult', 'Enter username', 'error');
+    
+    // Get current coins (exact updateUserCoins)
+    const { data: users } = await apiRequest(`/users?username=eq.${username}&select=coins`);
+    if (!users.length) return showResult('coinResult', '❌ User not found', 'error');
+    
+    const newCoins = Math.max(0, (users[0].coins || 0) + amount);
+    
+    // Update (exact web app)
+    const { status } = await apiRequest(`/users?username=eq.${username}`, {
+        method: 'PATCH'
+    }, { coins: newCoins });
+    
+    const msg = status === 204 ? 
+        `✅ ${username}: ${newCoins} coins (+${amount})` : 
+        '❌ Update failed (RLS?)';
+    showResult('coinResult', msg, status === 204 ? 'success' : 'error');
+}
 
-        // 🆕 CREATE TOOL
-        async function createTool() {
-            const name = document.getElementById('toolName').value;
-            const desc = document.getElementById('toolDesc').value;
-            const url = document.getElementById('toolUrl').value;
-            const price = parseInt(document.getElementById('toolPrice').value) || 0;
-            
-            if (!name || !desc || !url) return showResult('toolResult', 'Fill all fields', 'error');
-            
-            const id = `tool_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-            const tool = {
-                id, name, description: desc, tool_url: url,
-                price, is_free: price === 0, likes_count: 0,
-                created_at: new Date().toISOString()
-            };
-            
-            const { status } = await apiRequest('/tools', { method: 'POST' }, tool);
-            
-            showResult('toolResult', status === 201 ? `✅ ${name} created!` : '❌ Failed', status === 201 ? 'success' : 'error');
-            document.getElementById('createToolSection').querySelectorAll('input').forEach(i => i.value = '');
-        }
+// 🆕 CREATE USER (exact handleSignup)
+async function createUser() {
+    const email = document.getElementById('newUserEmail').value.trim();
+    const username = document.getElementById('newUserName').value.trim();
+    const password = document.getElementById('newUserPass').value;
+    
+    if (!email || !username || !password) {
+        return showResult('userResult', 'Fill all fields', 'error');
+    }
+    
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hash = Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    const { status } = await apiRequest('/users', { 
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' }
+    }, { email, username, password_hash: hash, coins: 100, points: 0 });
+    
+    const msg = status === 201 ? `✅ ${username} created!` : '❌ Create failed';
+    showResult('userResult', msg, status === 201 ? 'success' : 'error');
+    
+    // Clear form
+    document.getElementById('newUserEmail').value = '';
+    document.getElementById('newUserName').value = '';
+    document.getElementById('newUserPass').value = '';
+}
 
-        // 🗑️ DELETE
-        async function deleteRecord() {
-            const table = document.getElementById('deleteTable').value;
-            const id = document.getElementById('deleteId').value;
-            
-            if (!id) return showResult('deleteResult', 'Enter ID', 'error');
-            
-            if (confirm(`Delete ${table}/${id}?`)) {
-                const { status } = await apiRequest(`/${table}?id=eq.${id}`, { method: 'DELETE' });
-                showResult('deleteResult', status === 204 ? '✅ Deleted' : '❌ Failed', status === 204 ? 'success' : 'error');
-                document.getElementById('deleteId').value = '';
-            }
-        }
+// 🆕 CREATE TOOL (exact handleUpload)
+async function createTool() {
+    const name = document.getElementById('toolName').value.trim();
+    const desc = document.getElementById('toolDesc').value.trim();
+    const url = document.getElementById('toolUrl').value.trim();
+    const price = parseInt(document.getElementById('toolPrice').value) || 0;
+    
+    if (!name || !desc || !url) {
+        return showResult('toolResult', 'Fill all fields', 'error');
+    }
+    
+    const id = `tool_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    const tool = {
+        id, name, description: desc, tool_url: url,
+        price, is_free: price === 0, likes_count: 0,
+        created_at: new Date().toISOString()
+    };
+    
+    const { status } = await apiRequest('/tools', { method: 'POST' }, tool);
+    
+    const msg = status === 201 ? `✅ "${name}" created!` : '❌ Create failed';
+    showResult('toolResult', msg, status === 201 ? 'success' : 'error');
+    
+    // Clear form
+    document.getElementById('toolName').value = '';
+    document.getElementById('toolDesc').value = '';
+    document.getElementById('toolUrl').value = '';
+    document.getElementById('toolPrice').value = '0';
+}
 
-        // 💾 DUMP
-        async function dumpAllData() {
-            document.getElementById('dumpResult').innerHTML = '<div class="loading">Dumping...</div>';
-            
-            const [tools, users, purchases] = await Promise.all([
-                apiRequest('/tools?select=*,users(username)'),
-                apiRequest('/users?select=*'),
-                apiRequest('/purchases?select=*,tools(*),users(*)')
-            ]);
-            
-            const dump = {
-                timestamp: new Date().toISOString(),
-                tools: tools.data,
-                users: users.data,
-                purchases: purchases.data
-            };
-            
-            const dataStr = JSON.stringify(dump, null, 2);
-            const dataBlob = new Blob([dataStr], {type: 'application/json'});
-            const url = URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `luminux_dump_${new Date().toISOString().slice(0,10)}.json`;
-            link.click();
-            
-            showResult('dumpResult', '✅ Full database dump downloaded!', 'success');
-        }
+// 🗑️ DELETE (safe)
+async function deleteRecord() {
+    const table = document.getElementById('deleteTable').value;
+    const id = document.getElementById('deleteId').value.trim();
+    
+    if (!id) return showResult('deleteResult', 'Enter ID', 'error');
+    
+    if (confirm(`⚠️ Delete ${table}/${id.slice(0,20)}...?`)) {
+        const { status } = await apiRequest(`/${table}?id=eq.${id}`, { 
+            method: 'DELETE' 
+        });
+        const msg = status === 204 ? '✅ Deleted successfully' : '❌ Delete failed';
+        showResult('deleteResult', msg, status === 204 ? 'success' : 'error');
+        document.getElementById('deleteId').value = '';
+    }
+}
 
-        // HELPERS
-        function showResult(id, message, type) {
-            const el = document.getElementById(id);
-            el.innerHTML = `<div class="${type}">${message}</div>`;
-            setTimeout(() => el.innerHTML = '', 5000);
-        }
+// 💾 DUMP (safe fields only)
+async function dumpAllData() {
+    document.getElementById('dumpResult').innerHTML = '<div class="loading">🔄 Creating safe dump...</div>';
+    
+    const [toolsCount, usersCount, purchasesCount, toolsSample, usersSample] = await Promise.all([
+        apiRequest('/tools?select=count'),
+        apiRequest('/users?select=count'),
+        apiRequest('/purchases?select=count'),
+        apiRequest('/tools?limit=10'),
+        apiRequest('/users?order=coins.desc&limit=5')
+    ]);
+    
+    const dump = {
+        timestamp: new Date().toISOString(),
+        stats: {
+            tools: toolsCount.data[0]?.count || 0,
+            users: usersCount.data[0]?.count || 0,
+            purchases: purchasesCount.data[0]?.count || 0
+        },
+        sample_tools: toolsSample.data,
+        top_users: usersSample.data
+    };
+    
+    const dataStr = JSON.stringify(dump, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `luminux_safe_dump_${new Date().toISOString().slice(0,10)}.json`;
+    link.click();
+    
+    showResult('dumpResult', '✅ Safe dump downloaded!', 'success');
+}
 
-        // INIT
-        loadStats();
-    </script>
+// RESULT HELPER
+function showResult(id, message, type) {
+    const el = document.getElementById(id);
+    el.innerHTML = `<div class="${type}">${message}</div>`;
+    setTimeout(() => el.innerHTML = '', 5000);
+}
+
+// INIT
+loadStatsSafe();
+</script>
+
+
+
+        
 </body>
 </html>
